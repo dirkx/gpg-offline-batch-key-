@@ -2,7 +2,7 @@
 umask 077
 set -e
 
-if ! test -e /dev/cu.usbserial-1337_BFBF0B95; then
+if  test -e /dev/cu.usbserial-1337_BFBF0B95; then
 	echo Hardware random generator not plugged in/visible to virtual host
 	exit 1
 fi
@@ -76,10 +76,11 @@ DATE=`date -u`
 SPECIMEN=""
 if [ "x$1" = 'x-d' ]; then
 	SPECIMEN="SPECIMEN"
+	shift
 fi
 KEYNAME="key-$$"
 if [ $# -gt 0 ]; then
-	KEYNAME="$2"
+	KEYNAME="$*"
 fi
 
 export CODE SHA256 SHA256A KEYNAME DATE SCRIPT EXTRACT SPECIMEN WW
@@ -88,11 +89,13 @@ cat $DIR/doc-unmanaged.tex | envsubst > privkey.tex
 /Library/TeX/texbin/pdflatex privkey.tex
 /Library/TeX/texbin/pdflatex privkey.tex
 
-if [ "x$1" = 'x-d' ]; then
+if [ "x$SPECIMEN" = 'xSPECIMEN' ]; then
 	cp privkey.pdf $TMPDIR
 	open $TMPDIR/privkey.pdf
 else
-lpr -\# 2 \
+lpr privkey.pdf
+
+true || lpr -\# 2 \
 	-o collate=true \
 	-o com.brother.print.PrintSettings.secureprint=ON \
 	-o com.brother.print.PrintSettings.cfjobname=key-$$ \
