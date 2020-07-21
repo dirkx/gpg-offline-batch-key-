@@ -1,7 +1,11 @@
 #!/bin/sh -e
 umask 077
 set -e
-set -x
+
+if ! test -e /dev/cu.usbserial-1337_BFBF0B95; then
+	echo Hardware random generator not plugged in/visible to virtual host
+	exit 1
+fi
 
 SCRIPT=$(realpath $0)
 CODE=$(realpath $0/../decode.c)
@@ -10,6 +14,7 @@ DIR=$(dirname $CODE)
 EXPDIR=`pwd`
 PASSWD=${PASSWD:-}
 PIN=$(openssl rand -base64 128 | tr -dc 0-9 | cut -c 1-4)
+WW=$(openssl rand -base64 128 | tr -dc 0-9a-zA-Z | cut -c 1-12)
 
 # create an ephemeral disk that disappears once we're done.
 #
@@ -28,48 +33,32 @@ test -d $OUTDIR
 chmod 700 $OUTDIR
 cd $OUTDIR
 
-# Disable the agent - as it will prevent us from unmounting the
-# disk post generation due to it claiming a socket.
-#
-echo no-use-agent > gpg.conf
+openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -x509 -nodes -days 3650 -out cert.pem -keyout cert.pem -subj /CN="fakeGAEN"
+openssl ec -in cert.pem > secret-key.pem
+openssl ec -in cert.pem -outform DER > secret-key.der
+openssl ec -in cert.pem -pubout > pub-key.pem
+openssl ec -in cert.pem -pubout -outform DER > pub-key.der
+openssl pkcs12 -in cert.pem -export -out cert.p12 -nodes -password pass:
+openssl pkcs12 -in cert.pem -export -out bundle.p12 -nodes -password pass:$WW
 
-# generate a private/public keypair; and export it. We use ED25519
-# as to allow it ti fit in a QR code (hence we keep the name short too).
-#
-gpg2 --homedir . --batch --passphrase "$PASSWD" --quick-generate-key key-$$ ed25519
-FPR=$(gpg --homedir . --list-keys --with-colons key-$$| grep fpr | head -1 | cut -f 10 -d:)
-gpg2 --homedir . --batch --passphrase "$PASSWD" --quick-add-key $FPR cv25519 
+# Extract the EC key...include in OS
+openssl ec -in cert.pem -pubout | openssl ec -pubin -text > pub.txt
+openssl ec -in cert.pem -text -pubout > priv.txt
 
-# test that we can encrupt
-echo All working ok | gpg2 --homedir . --encrypt  --batch --passphrase "$PASSWD" -r key-$$ > test.gpg
-gpg2 --homedir . --decrypt < test.gpg
+qrencode -l H -8 -s 8 -r secret-key.der -o qr.png
+hexdump secret-key.der  > privhex.txt
 
-gpg2 --homedir . --batch --passphrase "$PASSWD" --export-options export-minimal --export-secret-keys key-$$  > gpg.priv.raw
-gpg2 --homedir . --batch --passphrase "$PASSWD" --export-options export-minimal -a --export-secret-keys key-$$  > gpg.priv.raw.asc
-
-# Encode the private key to both a hexdump and a QR code.
-#
-qrencode -l H -8 -s 8 -r gpg.priv.raw -o qr.png
-hexdump gpg.priv.raw  > priv.txt
+SHA256=`openssl sha256 secret-key.der  |sed -e "s/.*= //" -e 's/\(........\)/ \1/g'`
+SHA256A=`openssl sha256 secret-key.pem |sed -e "s/.*= //" -e 's/\(........\)/ \1/g'`
 
 # Decode the key and check that it is identical
 #
-qrdecode qr.png > gpg.priv.raw.dec # quirc v1.00
-diff gpg.priv.raw.dec gpg.priv.raw
+qrdecode qr.png > secret-key.der.dec # quirc v1.00
+diff  secret-key.der.dec  secret-key.der 
 
-# Import the key into a fresh keyring - to verify that that works.
-#
-mkdir test.$$
-gpg2 --homedir test.$$ --batch --passphrase "$PASSWD" --import gpg.priv.raw.dec
-gpg2 --homedir test.$$ --batch --passphrase "$PASSWD" --decrypt test.gpg
-
-gpg2 --homedir . --batch --passphrase "$PASSWD" --list-keys  --fingerprint --with-subkey-fingerprint > gpg.txt
-rm -rf test.$$
 
 (
 	uname -a
-	echo
-	gpg --version
 	echo
 	openssl version
 	echo
@@ -82,18 +71,19 @@ rm -rf test.$$
 # Generare the various pages.
 #
 DATE=`date -u`
-SHA256=`openssl sha256 gpg.priv.raw |sed -e "s/.*= //" -e 's/\(........\)/ \1/g'`
-SHA256A=`openssl sha256 gpg.priv.raw.asc |sed -e "s/.*= //" -e 's/\(........\)/ \1/g'`
 
-KEYNAME=$$
 
 SPECIMEN=""
 if [ "x$1" = 'x-d' ]; then
 	SPECIMEN="SPECIMEN"
 fi
+KEYNAME="key $$"
+if [ $# -gt 0 ]; then
+	KEYNAME="$2"
+fi
 
-export CODE SHA256 SHA256A KEYNAME DATE SCRIPT EXTRACT SPECIMEN
-cat $DIR/doc.tex | envsubst > privkey.tex
+export CODE SHA256 SHA256A KEYNAME DATE SCRIPT EXTRACT SPECIMEN WW
+cat $DIR/doc-unmanaged.tex | envsubst > privkey.tex
 
 /Library/TeX/texbin/pdflatex privkey.tex
 /Library/TeX/texbin/pdflatex privkey.tex
@@ -120,7 +110,13 @@ fi
 # Export the public key - for actual use. The private key will fromhereon 
 # only exist on paper.
 #
-gpg2 --homedir . --export key-$$ >  $EXPDIR/public-key-$$.gpg
+mkdir bundle-$$
+cp cert.p12 cert.pem priv.txt privhex.txt pub-key.der pub-key.pem pub.txt secret-key.der secret-key.pem bundle-$$
+
+7z -p$WW a $EXPDIR/bundle-$$.zip  bundle-$$/*
+
+cp pub.txt $EXPDIR/bundle-$$.txt
+cp bundle.p12  $EXPDIR/bundle-$$.p12
 
 # Ejecting the ephemeral disk will wipe all private key material.
 # We use 'force' to foil MDS.
@@ -130,5 +126,6 @@ hdiutil eject -force $OUTDIR
 echo
 echo
 echo Printer PIN is $PIN
+echo WW is $WW
 
 exit 0
