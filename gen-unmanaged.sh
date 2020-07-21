@@ -77,7 +77,7 @@ SPECIMEN=""
 if [ "x$1" = 'x-d' ]; then
 	SPECIMEN="SPECIMEN"
 fi
-KEYNAME="key $$"
+KEYNAME="key-$$"
 if [ $# -gt 0 ]; then
 	KEYNAME="$2"
 fi
@@ -113,17 +113,16 @@ fi
 mkdir bundle-$$
 cp cert.p12 cert.pem priv.txt privhex.txt pub-key.der pub-key.pem pub.txt secret-key.der secret-key.pem bundle-$$
 
-7z -p$WW a $EXPDIR/bundle-$$.zip  bundle-$$/*
-
-cp pub.txt $EXPDIR/bundle-$$.txt
-cp bundle.p12  $EXPDIR/bundle-$$.p12
+7z -p$WW a $EXPDIR/bundle-$KEYNAME-$$.zip  bundle-$$/*
+cp pub.txt $EXPDIR/bundle-$KEYNAME-$$.txt
+cp bundle.p12  $EXPDIR/bundle-$KEYNAME-$$.p12
 
 # Ejecting the ephemeral disk will wipe all private key material.
 # We use 'force' to foil MDS.
 #
 hdiutil eject -force $OUTDIR
 
-echo
+echo Files /bundle-$KEYNAME-$$.zip, txt en p12
 echo
 echo Printer PIN is $PIN
 echo WW is $WW

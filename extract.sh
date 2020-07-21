@@ -19,6 +19,3 @@ gcc -I quirc/tests -I quirc/lib  -o decode \
 # Check checksum
 openssl sha256 key.raw 
 
-# Import key.
-gpg --homedir . --import key.raw 
-
