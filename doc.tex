@@ -1,0 +1,146 @@
+\documentclass[11pt,svgnames]{report}
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{a4paper}                   % ... or a4paper or a5paper or ... 
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{epstopdf}
+\usepackage{watermark}
+\usepackage{lipsum}
+\usepackage{tikz}
+\usepackage{kpfonts}
+\usepackage{draftwatermark}
+\usepackage[bottom]{footmisc}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+
+\SetWatermarkText{$SPECIMEN}
+
+\newcommand{\topbar}[2]{
+ {\begin{tikzpicture}[remember picture,overlay]
+    \node[yshift=-2cm] at (current page.north west)
+      {\begin{tikzpicture}[remember picture, overlay]
+        \draw[fill=#1] (0,0) rectangle
+          (\paperwidth,2cm);
+        \node[anchor=east,xshift=.9\paperwidth,rectangle,
+              rounded corners=20pt,inner sep=11pt,
+              fill=MidnightBlue]
+              {\color{white}\normalfont\sffamily\Huge\bfseries\scshape #2};
+       \end{tikzpicture}
+    };
+   \end{tikzpicture}
+  }
+}
+
+
+\renewcommand{\headrulewidth}{0pt}
+\newcommand{\pagefooter}{\scriptsize \textcolor{gray}{p\thepage\ of 10 - \date - 1.03
+\ifdefined\projectCode%
+- \textsc{\projectCode}%
+\fi%
+}%
+}%
+\cfoot{}
+\rfoot{\pagefooter}
+\lfoot{\scriptsize \textcolor{gray}{Web Weaving, Janvossensteeg 37-39, 2312WC Leiden / office@webweaving.org }}
+
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyfoot[R]{\pagefooter}
+        \renewcommand{\headrulewidth}{0pt}
+}
+
+\begin{document}
+\watermark{\topbar{green}{public}}
+
+\chapter*{Recovery document for key {$KEYNAME}}
+\section*{$DATE}
+
+This document contains the recovery procedure for the \emph{private} key whose public key has the fingerprint shown below:
+'
+\lstinputlisting[breaklines,tabsize=2,basicstyle=\ttfamily\small]{gpg.txt}
+
+\section*{Process}
+
+Prior to opening the sealed envelope with the private key details we suggest that you:
+
+\begin{enumerate}
+\item Consider having a second person acting as an observer; and document the steps taken during recovery.
+\item Ensure that you have a clean machine; and that your pgp, gpg or gnupg supports ``ECDSA'' as a pubkey (Use ``gpg --version'' to check).
+\item Have acces to a QR decoder; or have a library such as https://github.com/dlbeer/quirc.git compiled and tested. (The alternative is OCR or entering half a page (500 numbers) by hand).
+\end{enumerate}
+
+\pagebreak 
+\section*{Decode}
+\label{quirc}
+
+Unfortunately most QR decoders are somewhat careless about binary data and loose the `top bit' Code known to correctly extract QR binary code is shown below. Needs to be linked against: 
+
+\begin{quotation}
+https://github.com/dlbeer/quirc.git (-- v1.00, commit 307473d on 2018-02-01).
+\end{quotation}
+
+\lstinputlisting[breaklines,language=sh,tabsize=2,basicstyle=\ttfamily\tiny]{$CODE}
+\pagebreak
+\subsection*{Compile and extract raw key}
+
+A typical sequence of steps to compile the decoder and import thee key into a GPG
+is shown below. The 'XXXX' refers to the path to the C code listed on the previous page. The `generation' script on the next page does much the same thing in the section \emph{`Decode the key and verify ...'}.
+
+\lstinputlisting[breaklines,language=sh,tabsize=2,basicstyle=\ttfamily\tiny]{$EXTRACT}
+
+\pagebreak 
+
+\section*{Script used to generate this key}
+\texttt{ \lstinputlisting[breaklines,language=sh,tabsize=2,basicstyle=\ttfamily\tiny]{$SCRIPT} }
+\pagebreak 
+
+\section*{GPG listing}
+
+\lstinputlisting[breaklines,tabsize=2,basicstyle=\ttfamily\tiny]{gpg.txt}
+
+\section*{Auxilary info} \lstinputlisting[breaklines,tabsize=2,basicstyle=\ttfamily\tiny]{info.txt}
+
+\chapter*{Private key ${KEYNAME}}
+\section*{$DATE}
+This document allows for the reconstruction of a private key (secret key).
+
+The path is as follows:
+
+\begin{enumerate}
+\item Ensure that you have a clean machine; and that your pgp, gpg or gnupg supports ``ECDSA'' as a pubkey (Use ``gpg --version'' to check).
+\item Scan in the private key on page \pageref{qr}. 
+\item Using a QR decoder; extract the binary data from it\footnote{Note that a fair number of qrdecoders on the internet are `broken' due to careless handling of UTF8 and binary data. See page \pageref{quirc} for a tested alternative.}.
+
+If that does not work - enter the keys manaully (provided on the next pages).
+\item (optional) Check if the entered/extracted key is correct using the SHA256 listed on each page.
+\item Import the extracted secret key with ``gpg2 --homedir . --import qr-code-extrracted.binary''.
+\end{enumerate}
+
+You can now use the keyring created in the directory specified with ``--homedir'' to decrypt files.
+
+Note that this secret key is \emph{not} protected by a password.
+
+\watermark{\topbar{red}{sensitive key material}}
+\pagebreak 
+
+\section*{Private key ${KEYNAME} - $DATE}
+\label{qr}
+\includegraphics[width=16cm]{qr.png}
+
+\section*{Sha 256 of private key} \texttt{$SHA256}
+
+\pagebreak
+\section*{Private key ${KEYNAME} - $DATE} {\small \texttt{ \lstinputlisting[breaklines,language=sh,tabsize=2]{gpg.priv.raw.asc} }}
+
+\section*{Sha 256 of the ASCII armoured  private key including headers}
+\texttt{$SHA256A}
+\section*{Sha 256 of private key}
+\texttt{$SHA256}
+\pagebreak 
+
+\section*{Private key ${KEYNAME} - $DATE}
+\texttt{ \lstinputlisting[breaklines,language=sh,tabsize=2]{priv.txt} }
+\section*{Sha 256 of private key}
+\texttt{$SHA256}
+\end{document}
+

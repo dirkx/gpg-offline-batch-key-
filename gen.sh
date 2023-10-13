@@ -36,7 +36,7 @@ echo no-use-agent > gpg.conf
 # generate a private/public keypair; and export it. We use ED25519
 # as to allow it ti fit in a QR code (hence we keep the name short too).
 #
-gpg2 --homedir . --batch --passphrase "$PASSWD" --quick-generate-key key-$$ ed25519
+gpg2 --homedir . --batch --passphrase "$PASSWD" --quick-generate-key key-$$ ed25519 default never
 FPR=$(gpg --homedir . --list-keys --with-colons key-$$| grep fpr | head -1 | cut -f 10 -d:)
 gpg2 --homedir . --batch --passphrase "$PASSWD" --quick-add-key $FPR cv25519 
 
@@ -102,7 +102,7 @@ if [ "x$1" = 'x-d' ]; then
 	cp privkey.pdf $TMPDIR
 	open $TMPDIR/privkey.pdf
 else
-lpr -\# 2 \
+lpr -\# 3 \
 	-o collate=true \
 	-o com.brother.print.PrintSettings.secureprint=ON \
 	-o com.brother.print.PrintSettings.cfjobname=key-$$ \
